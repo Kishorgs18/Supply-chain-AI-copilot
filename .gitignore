@@ -1,0 +1,18 @@
+# API Credentials
+.env
+
+# Python Environment & Cache
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+venv/
+.PROJECT_ENV/
+
+# Local Databases & dbt Artifacts
+*.duckdb
+*.duckdb.wal
+target/
+dbt_packages/
+logs/
+raw_data/

@@ -1,0 +1,7 @@
+supply_chain_profile:
+  outputs:
+    dev:
+      type: duckdb
+      path: '../supply_chain.duckdb'
+      threads: 4
+  target: dev

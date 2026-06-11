@@ -41,4 +41,3 @@ An end-to-end intelligent data infrastructure platform that orchestrates real-ti
 The integrated **LangGraph ReAct Agent** dynamically evaluates requests and executes native pipeline paths based on context:
 * **Structured Analytics:** Automatically converts natural language questions (e.g., *"What is our total operational revenue so far?"*) into optimized SQL dialects, executing queries directly against the Gold data layer.
 * **Predictive Risk Assessment:** Maps text indicators (e.g., *"Shipping Electronics to the UK"*) directly onto trained machine learning feature matrices to process real-time probabilistic delay checks.
-

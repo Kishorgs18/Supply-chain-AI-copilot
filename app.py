@@ -71,17 +71,24 @@ if prompt := st.chat_input("Ask the supply-chain copilot…"):
         st.markdown(prompt)
     with st.chat_message("assistant"):
         with st.spinner("Thinking…"):
-            tools_used = []
-            answer = ""
-            try:
-                for event in agent.stream({"messages": [("user", prompt)]}, stream_mode="values"):
-                    msg = event["messages"][-1]
-                    if msg.type == "tool":
-                        tools_used.append(msg.name)
-                    elif msg.type == "ai" and msg.content:
-                        answer = msg.content
-            except Exception as e:
-                answer = f"⚠️ Error: {e}"
+            tools_used, answer = [], ""
+            # Groq tool-calling is occasionally flaky (malformed function call);
+            # retry once before giving up.
+            for _attempt in range(2):
+                tools_used, answer = [], ""
+                try:
+                    for event in agent.stream({"messages": [("user", prompt)]}, stream_mode="values"):
+                        msg = event["messages"][-1]
+                        if msg.type == "tool":
+                            tools_used.append(msg.name)
+                        elif msg.type == "ai" and msg.content:
+                            answer = msg.content
+                    if answer:
+                        break
+                except Exception:
+                    continue
+            if not answer:
+                answer = "⚠️ The model had trouble with that one — please try rephrasing your question."
             if tools_used:
                 st.caption("🔧 Tools used: " + ", ".join(dict.fromkeys(tools_used)))
             st.markdown(answer or "_(no response)_")

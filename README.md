@@ -4,6 +4,30 @@ An end-to-end intelligent data infrastructure platform that orchestrates real-ti
 
 ---
 
+## 🚀 Run the copilot (chat app)
+
+A **Streamlit chat interface** (`app.py`) wraps the LangGraph agent — ask questions
+in natural language and it queries the DuckDB warehouse and the XGBoost delay model.
+
+```bash
+pip install -r requirements.txt
+echo "GROQ_API_KEY=your_key_here" > .env      # free key: https://console.groq.com
+streamlit run app.py
+```
+
+**Deploy free on Streamlit Community Cloud:**
+1. Point Streamlit Cloud at this repo with `app.py` as the entry file.
+2. In the app's **Settings → Secrets**, add: `GROQ_API_KEY = "your_key"`.
+3. Deploy — the bundled `supply_chain.duckdb` warehouse ships with the repo, so it
+   works out of the box.
+
+> The agent uses Groq's free Llama 3.1 inference, so the LLM is free to run.
+
+Example questions: *"What's our total revenue?"* · *"How many orders are delayed?"*
+· *"Top 3 categories by revenue?"* · *"Will an Electronics order to JP be delayed?"*
+
+---
+
 ## 🏗️ Architecture Overview
 
 ```text

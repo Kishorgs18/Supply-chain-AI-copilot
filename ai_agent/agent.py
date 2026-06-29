@@ -1,104 +1,92 @@
-import os
-import duckdb
+"""Agentic supply-chain copilot: a LangGraph ReAct agent (Groq Llama 3.1) with
+two tools — SQL over a DuckDB warehouse and an XGBoost delay predictor.
+
+Importable: call `get_agent()` to build the agent (after GROQ_API_KEY is set).
+Run directly (`python ai_agent/agent.py`) for a CLI chat loop.
+"""
 import pickle
+from pathlib import Path
+
+import duckdb
 import pandas as pd
-from dotenv import load_dotenv
 from langchain_core.tools import tool
 from langchain_groq import ChatGroq
-# Updated import path to get rid of the deprecation warning
-from langgraph.prebuilt import create_react_agent 
+from langgraph.prebuilt import create_react_agent
 
-# Load API Key
-load_dotenv('../.env')
+ROOT = Path(__file__).resolve().parent.parent
+DB = ROOT / "supply_chain.duckdb"
+SNAPSHOT = ROOT / "supply_chain_snapshot.duckdb"
+MODEL = ROOT / "notebooks" / "delay_prediction_model.pkl"
+FEATURES = ROOT / "notebooks" / "model_features.pkl"
 
-print("Booting up Agentic Tools...")
 
 @tool
 def query_warehouse(sql_query: str) -> str:
-    """
-    Executes a SQL query against the DuckDB Data Warehouse.
-    Use this to answer questions about past orders, revenue, or historical delays.
-    The main table is called 'fct_orders'.
-    
-    CRITICAL: ALWAYS use clean SQL syntax. Example to get total revenue:
-    SELECT SUM(total_amount) FROM fct_orders;
-    """
-    src = '../supply_chain.duckdb'
-    dst = '../supply_chain_snapshot.duckdb'
+    """Executes a SQL query against the DuckDB warehouse (table: fct_orders).
+    Use it for questions about orders, revenue, or historical delays.
+    Example: SELECT SUM(total_amount) FROM fct_orders;"""
     con = None
-    
     try:
-        # Read byte-stream directly to completely bypass active process OS locks
-        with open(src, 'rb') as f_in:
-            with open(dst, 'wb') as f_out:
-                f_out.write(f_in.read())
-                
-        con = duckdb.connect(dst, read_only=True)
-        
+        # Copy to a detached snapshot to bypass any active write-locks.
+        with open(DB, "rb") as fi, open(SNAPSHOT, "wb") as fo:
+            fo.write(fi.read())
+        con = duckdb.connect(str(SNAPSHOT), read_only=True)
         if not sql_query or len(sql_query.strip()) < 5:
             return "Error: Invalid or empty SQL query provided."
-            
-        result = con.execute(sql_query).df()
-        return result.to_string()
-        
+        return con.execute(sql_query).df().to_string()
     except Exception as e:
-        return f"Database error occurred: {str(e)}. Do not re-try or loop. Report this issue to the user directly."
+        return f"Database error: {e}. Do not re-try or loop; report it to the user."
     finally:
         if con:
-            try: con.close()
-            except: pass
+            try:
+                con.close()
+            except Exception:
+                pass
+
 
 @tool
 def predict_order_delay(category: str, country: str) -> str:
-    """
-    Predicts if a future order is likely to be delayed based on Machine Learning.
-    Use this when the user asks if a new or hypothetical order will be late.
-    """
+    """Predicts whether a hypothetical order is likely to be delayed (XGBoost).
+    Use it when asked if a new/future order will be late."""
     try:
-        with open('../notebooks/delay_prediction_model.pkl', 'rb') as f:
-            model = pickle.load(f)
-        with open('../notebooks/model_features.pkl', 'rb') as f:
-            features = pickle.load(f)
-            
-        input_data = pd.DataFrame(0, index=[0], columns=features)
-        cat_col = f"product_category_{category}"
-        country_col = f"destination_country_{country}"
-        
-        if cat_col in input_data.columns: input_data[cat_col] = 1
-        if country_col in input_data.columns: input_data[country_col] = 1
-            
-        prediction = model.predict(input_data)[0]
-        return "High risk of delay!" if prediction == 1 else "Likely to ship on time."
+        model = pickle.load(open(MODEL, "rb"))
+        features = pickle.load(open(FEATURES, "rb"))
+        x = pd.DataFrame(0, index=[0], columns=features)
+        for col in (f"product_category_{category}", f"destination_country_{country}"):
+            if col in x.columns:
+                x[col] = 1
+        return "High risk of delay!" if model.predict(x)[0] == 1 else "Likely to ship on time."
     except Exception as e:
-        return f"Prediction Error: {str(e)}"
+        return f"Prediction Error: {e}"
 
-# System prompt forcing the agent to act responsibly
-system_prompt = """You are an elite Supply Chain Analytics executive. 
-If a tool returns an error or a database lock warning, you must instantly stop executing tools. 
-Do not loop or retry the same tool. Present whatever information or error you received directly to the manager."""
 
-tools = [query_warehouse, predict_order_delay]
-llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
+SYSTEM_PROMPT = (
+    "You are an elite Supply Chain Analytics executive. If a tool returns an error "
+    "or a database-lock warning, stop executing tools immediately — do not loop or "
+    "retry. Present whatever information or error you received directly to the manager."
+)
 
-# FIX: Changed 'state_modifier' to 'prompt' to match modern LangGraph versions
-agent_executor = create_react_agent(llm, tools, prompt=system_prompt)
+TOOLS = [query_warehouse, predict_order_delay]
 
-print("Supply Chain AI Agent Online! Type 'exit' to quit.")
-print("-" * 50)
 
-while True:
-    user_input = input("\nManager: ")
-    if user_input.lower() in ['quit', 'exit', 'q']:
-        break
-        
-    events = agent_executor.stream(
-        {"messages": [("user", user_input)]},
-        stream_mode="values"
-    )
-    
-    for event in events:
-        message = event["messages"][-1]
-        if message.type == "ai" and message.content:
-            print(f"\n Agent: {message.content}")
-        elif message.type == "tool":
-            print(f"   [Used Tool: {message.name}]")
+def get_agent(model_name: str = "llama-3.1-8b-instant"):
+    """Build the ReAct agent. Requires GROQ_API_KEY in the environment."""
+    llm = ChatGroq(model=model_name, temperature=0)
+    return create_react_agent(llm, TOOLS, prompt=SYSTEM_PROMPT)
+
+
+if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
+    agent = get_agent()
+    print("Supply Chain AI Agent online. Type 'exit' to quit.\n" + "-" * 50)
+    while True:
+        user_input = input("\nManager: ")
+        if user_input.lower() in ("quit", "exit", "q"):
+            break
+        for event in agent.stream({"messages": [("user", user_input)]}, stream_mode="values"):
+            msg = event["messages"][-1]
+            if msg.type == "ai" and msg.content:
+                print(f"\nAgent: {msg.content}")
+            elif msg.type == "tool":
+                print(f"   [Used Tool: {msg.name}]")

@@ -11,6 +11,8 @@ venv/
 
 # Local Databases & dbt Artifacts
 *.duckdb
+!supply_chain.duckdb            # keep the warehouse the deployed app reads
+supply_chain_snapshot.duckdb    # runtime read-only copy, regenerated each query
 *.duckdb.wal
 target/
 dbt_packages/

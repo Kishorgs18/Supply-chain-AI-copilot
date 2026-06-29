@@ -60,16 +60,27 @@ def predict_order_delay(category: str, country: str) -> str:
         return f"Prediction Error: {e}"
 
 
-SYSTEM_PROMPT = (
-    "You are an elite Supply Chain Analytics executive. If a tool returns an error "
-    "or a database-lock warning, stop executing tools immediately — do not loop or "
-    "retry. Present whatever information or error you received directly to the manager."
-)
+SYSTEM_PROMPT = """You are an elite Supply Chain Analytics executive with access to a DuckDB warehouse.
+
+The ONLY table is `fct_orders`, with these columns and EXACT allowed values:
+- order_id, customer_id, product_id : text
+- product_category : one of 'Furniture', 'Electronics', 'Apparel', 'Home Goods'
+- quantity : integer
+- total_amount : float (revenue)
+- destination_country : one of 'US', 'UK', 'DE', 'FR', 'JP', 'CA', 'AU'
+- order_status : one of 'processing', 'shipped', 'delayed', 'delivered'  (lowercase)
+- order_placed_at : timestamp
+- is_delayed : 1 if delayed else 0
+
+Rules:
+- Write ONE clean, valid DuckDB SQL query using ONLY the exact values above. Never invent status values.
+- For delayed orders use:  WHERE order_status = 'delayed'  (or is_delayed = 1).
+- If a tool returns an error, STOP immediately — do not retry or loop. Present the result or error to the manager clearly and concisely."""
 
 TOOLS = [query_warehouse, predict_order_delay]
 
 
-def get_agent(model_name: str = "llama-3.1-8b-instant"):
+def get_agent(model_name: str = "llama-3.3-70b-versatile"):
     """Build the ReAct agent. Requires GROQ_API_KEY in the environment."""
     llm = ChatGroq(model=model_name, temperature=0)
     return create_react_agent(llm, TOOLS, prompt=SYSTEM_PROMPT)

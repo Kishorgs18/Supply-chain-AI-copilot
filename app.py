@@ -25,7 +25,7 @@ if not os.environ.get("GROQ_API_KEY"):
 
 st.title("📦 Supply Chain AI Copilot")
 st.caption(
-    "An agentic AI (LangGraph + Groq Llama 3.1) that answers supply-chain questions "
+    "An agentic AI (LangGraph + Groq Llama 3.3 70B) that answers supply-chain questions "
     "by querying a DuckDB warehouse and an XGBoost delay model."
 )
 

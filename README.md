@@ -21,7 +21,7 @@ streamlit run app.py
 3. Deploy — the bundled `supply_chain.duckdb` warehouse ships with the repo, so it
    works out of the box.
 
-> The agent uses Groq's free Llama 3.1 inference, so the LLM is free to run.
+> The agent uses Groq's free Llama 3.3 inference, so the LLM is free to run.
 
 Example questions: *"What's our total revenue?"* · *"How many orders are delayed?"*
 · *"Top 3 categories by revenue?"* · *"Will an Electronics order to JP be delayed?"*
